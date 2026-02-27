@@ -3,7 +3,6 @@ local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 
 
-local Objects = script.Parent:WaitForChild("Objects")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 local Visuals = PlayerGui:WaitForChild("Visuals")
 
@@ -227,5 +226,6 @@ function Information:OnUpdate(dt, beat, step, section, timePos)
 	camera.FieldOfView = 70 + self._camZoom * 100
 
 end
+
 
 return Information
