@@ -1,0 +1,74 @@
+local RunService = game:GetService("RunService")
+
+local Visualizer = {}
+
+Visualizer.CurrentBeat = 0
+Visualizer.CurrentStep = 0
+Visualizer.CurrentSection = 0
+Visualizer.HasInitialized = false
+Visualizer._running = false
+
+function Visualizer:Start(sound, information)
+
+	if self._running then
+		RunService:UnbindFromRenderStep("MusicVisualizer")
+	end
+
+	self._running = true
+
+	self.CurrentBeat = -1
+	self.CurrentStep = -1
+	self.CurrentSection = -1
+	self.HasInitialized = false
+
+	information._lastBeatFloat = 0
+
+	local BPM = information.BPM
+	local BeatLength = 60 / BPM
+	local StepLength = BeatLength / 4
+	local SectionLength = BeatLength * 4
+
+	RunService:BindToRenderStep("MusicVisualizer", Enum.RenderPriority.Camera.Value + 1, function(dt)
+
+		if not sound or not sound.IsPlaying then return end
+
+		local timePos = sound.TimePosition
+
+		local beat = math.floor(timePos / BeatLength)
+		local step = math.floor(timePos / StepLength)
+		local section = math.floor(timePos / SectionLength)
+
+		-- Force first frame initialization safely
+		if not self.HasInitialized then
+			self.HasInitialized = true
+			information:OnSectionHit(section)
+			information:OnBeatHit(beat)
+		end
+
+		if beat ~= self.CurrentBeat then
+			self.CurrentBeat = beat
+			information:OnBeatHit(beat)
+		end
+
+		if step ~= self.CurrentStep then
+			self.CurrentStep = step
+			information:OnStepHit(step)
+		end
+
+		if section ~= self.CurrentSection then
+			self.CurrentSection = section
+			information:OnSectionHit(section)
+		end
+
+		information:OnUpdate(dt, beat, step, section, timePos)
+
+	end)
+
+end
+
+function Visualizer:Stop()
+	RunService:UnbindFromRenderStep("MusicVisualizer")
+	self._running = false
+end
+
+return Visualizer

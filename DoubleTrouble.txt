@@ -1,0 +1,231 @@
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+
+
+local Objects = script.Parent:WaitForChild("Objects")
+local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+local Visuals = PlayerGui:WaitForChild("Visuals")
+
+local Information = {}
+
+local function WhiteFlash(time)
+	print("WhiteFlash")
+
+	local frame = Players.LocalPlayer.PlayerGui
+		:WaitForChild("Visuals")
+		:WaitForChild("WhiteFrame")
+
+	frame.BackgroundTransparency = 0
+
+	TweenService:Create(
+		frame,
+		TweenInfo.new(time),
+		{ BackgroundTransparency = 1 }
+	):Play()
+end
+
+
+Information.BPM = 210
+
+Information._currentSection = nil
+
+Information._camOffset = Vector3.zero
+Information._camRotation = 0
+Information._camZoom = 0
+Information.CamDecay = 8
+Information._lastBeatFloat = 0
+
+Information.Events = {
+	{
+		Section = 0,
+		Beat = 0,
+		Callback = function(self)
+			WhiteFlash(1)
+		end
+	},
+	{
+		Section = 8,
+		Beat = 0,
+		Callback = function(self)
+			WhiteFlash(0.5)
+		end
+	},
+	
+	{
+		Section = 25,
+		Beat = 0,
+		Callback = function(self)
+			WhiteFlash(0.5)
+		end
+	},
+	
+	{
+		Section = 43,
+		Beat = 0,
+		Callback = function(self)
+			WhiteFlash(0.5)
+		end
+	},
+
+	
+	{
+		Section = 59,
+		Beat = 0,
+		Callback = function(self)
+			WhiteFlash(0.5)
+		end
+	},
+
+}
+
+Information.Sections = {
+
+	[0] = {
+		EndOn = 3,
+
+		CameraBop = function(self, beat)
+			self._camZoom -= 0.02
+
+		end
+	},
+
+	[4] = {
+
+		CameraBop = function(self, beat)
+
+			local direction = (beat % 2 == 0) and 1 or -1
+
+			self._camRotation += 2.5 * direction
+
+			self._camZoom -= 0.01
+
+		end
+	},
+	
+	[8] = {
+		
+		CameraBop = function(self, beat)
+			local direction = (beat % 2 == 0) and 1 or -1
+
+			-- Rotation impulse
+			self._camRotation += 5 * direction
+
+			-- FOV zoom impulse
+			self._camZoom -= 0.03
+			
+			local sky = Lighting:FindFirstChildOfClass("Sky")
+			if sky then
+				sky.SkyboxOrientation = Vector3.new(
+					0,
+					math.sin(beat * 0.5) * 180,
+					0
+				)
+			end
+		end
+	},
+	
+	[59] = {
+
+		CameraBop = function(self, beat)
+			self._camZoom -= 0.03
+		end
+	}
+
+}
+
+function Information:OnSectionHit(sectionIndex)
+
+	local chosenSection = nil
+	local chosenStart = -math.huge
+
+	for startSection, data in pairs(self.Sections) do
+
+		local endSection = data.EndOn or math.huge
+
+		if sectionIndex >= startSection and sectionIndex <= endSection then
+			if startSection > chosenStart then
+				chosenStart = startSection
+				chosenSection = data
+			end
+		end
+	end
+
+	if self._currentSection ~= chosenSection then
+		self._currentSection = chosenSection
+
+		if chosenSection and chosenSection.OnEnter then
+			chosenSection.OnEnter(self)
+		end
+	end
+
+end
+
+function Information:OnBeatHit(beat)
+
+	if self._currentSection and self._currentSection.CameraBop then
+		self._currentSection.CameraBop(self, beat)
+	end
+
+end
+
+function Information:OnStepHit(step)
+end
+
+function Information:OnUpdate(dt, beat, step, section, timePos)
+	
+	if not self._initializedEventCheck then
+		self._initializedEventCheck = true
+
+		for _, event in ipairs(self.Events) do
+			local eventAbsoluteBeat = (event.Section * 4) + event.Beat
+			if eventAbsoluteBeat == 0 then
+				if event.Callback then
+					event.Callback(self)
+				end
+			end
+		end
+	end
+
+	local camera = workspace.CurrentCamera
+	local data = self.Sections[self._currentSection]
+
+	-- Calculate precise beat timing
+	local beatsPerSecond = self.BPM / 60
+	local currentBeatFloat = timePos * beatsPerSecond
+
+	local lastBeatFloat = self._lastBeatFloat or 0
+	self._lastBeatFloat = currentBeatFloat
+
+	-- Absolute event crossing detection
+	for _, event in ipairs(self.Events) do
+
+		local eventAbsoluteBeat = (event.Section * 4) + event.Beat
+
+		if lastBeatFloat < eventAbsoluteBeat and currentBeatFloat >= eventAbsoluteBeat then
+			if event.Callback then
+				event.Callback(self)
+			end
+		end
+
+	end
+
+	-- Camera decay (Psych style)
+	self._camOffset = self._camOffset:Lerp(Vector3.zero, dt * 8)
+	self._camRotation = self._camRotation + (0 - self._camRotation) * dt * 8
+	self._camZoom = self._camZoom + (0 - self._camZoom) * dt * 8
+
+	if data and data.CameraUpdate then
+		data.CameraUpdate(self, dt, beat, step)
+	end
+
+	camera.CFrame =
+		camera.CFrame
+		* CFrame.new(self._camOffset)
+		* CFrame.Angles(0, 0, math.rad(self._camRotation))
+
+	camera.FieldOfView = 70 + self._camZoom * 100
+
+end
+
+return Information
